@@ -25,11 +25,7 @@ identifiers as RDF annotations.
 
 The file is committed rather than downloaded at run time. BiGG can update a
 model in place, so pinning the exact file is what makes the results
-reproducible. Verify it with:
-
-```bash
-sha256sum data/iJN1463.xml
-```
+reproducible.
 
 ### Reaction identifiers
 
