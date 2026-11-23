@@ -23,13 +23,21 @@ def write_csv(name, header, rows):
         w = csv.writer(fh); w.writerow(header); w.writerows(rows)
     print(f"    -> results/{name}")
 
+HEADER = ["script", "quantity", "computed", "manuscript_claim", "verdict"]
+
 def finish(tag):
+    # Replace this script's rows rather than appending, so re-running a script
+    # (or run_all.py) leaves one row per check instead of duplicating them.
     path = os.path.join(RESULTS, "00_checks.csv")
-    new = not os.path.exists(path)
-    with open(path, "a", newline="") as fh:
+    kept = []
+    if os.path.exists(path):
+        with open(path, newline="") as fh:
+            kept = [r for r in csv.reader(fh) if r and r[0] not in (tag, HEADER[0])]
+    with open(path, "w", newline="") as fh:
         w = csv.writer(fh)
-        if new: w.writerow(["script","quantity","computed","manuscript_claim","verdict"])
-        for row in _checks: w.writerow([tag] + list(row))
+        w.writerow(HEADER)
+        for row in sorted(kept + [[tag] + list(r) for r in _checks], key=lambda r: r[0]):
+            w.writerow(row)
     fails = [c for c in _checks if c[3] == "FAIL"]
     print(f"\n    {len([c for c in _checks if c[3]=='PASS'])} passed, {len(fails)} failed")
     for label, computed, claimed, _ in fails:
