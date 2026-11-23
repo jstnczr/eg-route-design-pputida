@@ -1,16 +1,16 @@
-"""
-Candidate routes around the glycolate chokepoint in P. putida.
+"""Candidate routes around the glycolate chokepoint in P. putida.
 
-Notebook 01 found that cytosolic glycolate has exactly one consuming reaction,
-GLYCTO1 (glcD/glcE/glcF). That makes it a single-lane road with no detour. Each
-route below is a different way to stop that being the limit, taken from the
-published literature rather than invented here.
+Cytosolic glycolate has exactly one consuming reaction, GLYCTO1 (glcD/E/F),
+so the native route has no detour around its carbon loss. Each route below
+avoids or replaces that section.
 
-Two shapes of solution:
-  AVOID   - divert glycolaldehyde so glycolate is never made
-  SECOND  - give glycolate a second exit
+Every builder asserts mass balance. A reaction that does not balance stops
+the run rather than returning a confident wrong number.
 
-Every reaction is mass balanced; build_route() asserts it.
+  SACA   Lu 2019, Nat Commun 10:1378
+  SAGA   Wagner 2023, Front Bioeng Biotechnol 11:1125544
+  BHAC   Schada von Borzyskowski 2019, Nature 575:500; P. putida 2023
+  TaCo   Scheffen 2021, Nat Catal 4:105
 """
 
 from cobra import Reaction, Metabolite
@@ -45,9 +45,11 @@ def _coa_thioesters(model):
 # ---------------------------------------------------------------------------
 
 def route_saca(model):
-    """SACA. Glycolaldehyde straight to acetyl-phosphate, glycolate never made.
-    Yang et al. 2019 Nat Commun. ACPS is non-native and engineered.
-    Native PTAr then carries acetyl-phosphate to acetyl-CoA, so only ONE new enzyme."""
+    """SACA: glycolaldehyde -> acetyl-phosphate, one heterologous enzyme.
+
+    Native phosphotransacetylase carries acetyl-phosphate to acetyl-CoA, so
+    only the second enzyme of the published SACA route is needed here.
+    """
     return [_add(model, "ACPS", "acetyl-phosphate synthase (ACPS, SACA)",
                  {"gcald_c": -1, "pi_c": -1, "actp_c": 1, "h2o_c": 1})]
 
@@ -105,7 +107,8 @@ def route_taco_from_glyclt(model):
 def route_bhac(model):
     """beta-hydroxyaspartate cycle. Downstream of glycolate, so it cannot touch
     the chokepoint. Included as the control, since it is the published option.
-    Schada von Borzyskowski et al. 2019; Scheffen et al. 2023 Metab Eng."""
+    Schada von Borzyskowski et al. 2019 Nature 575:500;
+    P. putida implementation Schada von Borzyskowski et al. 2023."""
     return [
         _add(model, "BhcA_tx", "aspartate-glyoxylate aminotransferase (BhcA)",
              {"asp__L_c": -1, "glx_c": -1, "oaa_c": 1, "gly_c": 1}),
@@ -128,24 +131,71 @@ def route_glcdef_dh(model):
 
 ROUTES = {
     "SACA":         dict(fn=route_saca,            shape="avoid",  new_enzymes=1,
-                         source="Yang 2019 Nat Commun", note="ACPS Km 51 mM"),
+                         replaces=["GCALDD"], expect=0.6404,
+                         source="Lu 2019 Nat Commun 10:1378", note="ACPS Km 51 mM"),
     "SAGA (Ara5P)": dict(fn=route_saga,            shape="avoid",  new_enzymes=3,
-                         source="Multicriteria review 2025", note="G3P catalytic"),
+                         replaces=["GCALDD"], expect=0.6404,
+                         source="Wagner et al. 2023", note="G3P catalytic"),
     "TaCo from GA": dict(fn=route_taco_from_ga,    shape="avoid",  new_enzymes=3,
+                         replaces=["GCALDD"], expect=0.6404,
                          source="Scheffen 2021 Nat Catal", note="fixes CO2; GCC new-to-nature"),
     "TaCo from glycolate": dict(fn=route_taco_from_glyclt, shape="second exit", new_enzymes=3,
+                         replaces=[], expect=0.5451,
                          source="Scheffen 2021 Nat Catal", note="GCS Km 13 mM; fixes CO2"),
     "BHAC":         dict(fn=route_bhac,            shape="downstream", new_enzymes=4,
-                         source="Scheffen 2023 Metab Eng", note="highest enzyme cost"),
+                         replaces=["GLXCL"], expect=0.4618,
+                         source="Schada von Borzyskowski 2023", note="highest enzyme cost"),
     "glcDEF as DH": dict(fn=route_glcdef_dh,       shape="model fix", new_enzymes=0,
+                         replaces=["GLYCTO1"], expect=None,
                          source="EC 1.1.99.14", note="corrects iJN1463, not a strain change"),
 }
 
 
-def build_route(model, name):
-    """Add one route and assert every reaction balances."""
-    rxns = ROUTES[name]["fn"](model)
+def build_route(model, name, replace=True):
+    """Add one route, assert every reaction balances, and knock out what it replaces.
+
+    The knockout is the difference between adding a pathway and replacing one.
+    Without it the cell is free to keep using the native route: for the
+    avoid-routes the solver prefers the new one anyway, so the omission is
+    invisible, but BHAC is worse than native and would simply be ignored.
+
+    Which knockout, and why:
+      avoid routes (SACA, SAGA, TaCo from GA)  GCALDD, the displaced step
+      BHAC                                     GLXCL, the condensation
+      TaCo from glycolate                      none; it is a second exit
+      glcDEF as DH                             GLYCTO1, the same reaction rewritten
+    """
+    spec = ROUTES[name]
+    rxns = spec["fn"](model)
     for r in rxns:
         imbalance = r.check_mass_balance()
         assert not imbalance, f"{r.id} unbalanced: {imbalance}  ({r.reaction})"
+
+    if replace:
+        for rid in spec.get("replaces", []):
+            if model.reactions.has_id(rid):
+                model.reactions.get_by_id(rid).knock_out()
+
     return [r.id for r in rxns]
+
+
+def verify_all(model_loader, substrate_rate=35.0, tol=5e-4):
+    """
+    Build every route and check it still gives the yield the manuscript claims.
+
+    Run this before trusting any downstream analysis. It is the cheapest
+    guard there is against a reaction edit that quietly changes a headline
+    number.
+    """
+    import putida
+    results = []
+    for name, spec in ROUTES.items():
+        if spec.get("expect") is None:
+            continue
+        m = model_loader()
+        putida.set_carbon(m, {putida.EX_GLYCOL: substrate_rate}, forced=True)
+        build_route(m, name)
+        y, _ = putida.pha_yield(m, rate=substrate_rate)
+        ok = abs(y - spec["expect"]) <= tol
+        results.append((name, round(y, 4), spec["expect"], "PASS" if ok else "FAIL"))
+    return results

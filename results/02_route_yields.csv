@@ -1,0 +1,7 @@
+route,new_enzymes,pha_yield_Cmol_Cmol
+native glycerate,0,0.5088
+SACA,1,0.6404
+SAGA (Ara5P),3,0.6404
+TaCo from GA,3,0.6404
+TaCo from glycolate,3,0.5451
+BHAC,4,0.4618

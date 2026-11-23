@@ -1,0 +1,5 @@
+route,n_steps,mdf_kJ_per_mol,limiting_step
+Native glycerate,4,27.33,GLXCL
+SACA,2,47.99,ACPS
+SAGA (Ara5P),5,9.41,FSA_GA
+BHAC,6,9.24,BhcB

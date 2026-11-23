@@ -1,0 +1,18 @@
+route,step,cost_au,share_pct
+Native glycerate,GCALDD,0.42,61.53
+Native glycerate,GLYCTO1,0.2,29.21
+Native glycerate,GLXCL,0.06,8.52
+Native glycerate,HOXPRx,0.01,0.74
+SACA,ACPS,38.13,99.99
+SACA,PTAr,0.0,0.01
+SAGA (Ara5P),FSA_GA,0.07,40.12
+SAGA (Ara5P),KDSD,0.02,9.58
+SAGA (Ara5P),RPE,0.01,2.91
+SAGA (Ara5P),PKET,0.08,45.5
+SAGA (Ara5P),PTAr,0.0,1.9
+BHAC,GCALDD,0.42,57.44
+BHAC,GLYCTO1,0.2,27.27
+BHAC,BhcA,0.02,2.44
+BHAC,BhcC,0.03,3.58
+BHAC,BhcB,0.06,7.85
+BHAC,BhcD,0.01,1.42

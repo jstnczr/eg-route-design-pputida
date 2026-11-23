@@ -1,0 +1,5 @@
+route,point_estimate,mc_median,mc_p5,mc_p95,dominant_step,dominant_share_pct
+Native glycerate,0.7,0.9,0.3,5.6,GCALDD,61.5
+SACA,38.1,37.7,16.0,87.5,ACPS,100.0
+SAGA (Ara5P),0.2,0.2,0.1,0.2,PKET,45.5
+BHAC,0.7,1.0,0.3,4.7,GCALDD,57.4
